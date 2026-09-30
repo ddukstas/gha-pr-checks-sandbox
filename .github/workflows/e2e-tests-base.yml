@@ -11,25 +11,12 @@ on:
         required: false
         type: string
         default: ''
-      # A skip label: fails the job at once, since a skipped job would satisfy a required check.
-      skip-reason:
-        required: false
-        type: string
-        default: ''
 
 jobs:
   cypress-run:
     name: Cypress Tests
     runs-on: ubuntu-latest
     steps:
-      - name: Refuse a skip label
-        if: inputs.skip-reason != ''
-        env:
-          SKIP_REASON: ${{ inputs.skip-reason }}
-        run: |
-          echo "::error::E2E suite skipped by the '$SKIP_REASON' label. A skipped run still blocks merging — remove the label and let it run."
-          exit 1
-
       - name: Checkout
         uses: actions/checkout@v6
 
@@ -56,14 +43,14 @@ jobs:
 
       - name: Archive Cypress videos
         uses: actions/upload-artifact@v7
-        if: failure() && inputs.skip-reason == ''
+        if: failure()
         with:
           name: cypress-videos${{ inputs.artifact-suffix && format('-{0}', inputs.artifact-suffix) || '' }}
           path: modules/**/cypress/videos
           if-no-files-found: ignore
       - name: Archive Cypress screenshots
         uses: actions/upload-artifact@v7
-        if: failure() && inputs.skip-reason == ''
+        if: failure()
         with:
           name: cypress-screenshots${{ inputs.artifact-suffix && format('-{0}', inputs.artifact-suffix) || '' }}
           path: modules/**/cypress/screenshots
