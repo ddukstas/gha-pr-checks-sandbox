@@ -1,1 +1,1 @@
-export const draftPush: number = 1;
+export const draftPush: number = 2;
