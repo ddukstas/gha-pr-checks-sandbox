@@ -1,8 +1,12 @@
 name: Run E2E Tests (App)
 
-# Branch protection requires `E2E (App) / Cypress Tests`. A `Skip E2E` or `Skip E2E: App`
-# label turns that check red instead of running the suite, so a label only defers the
-# run — it never lets a PR merge without a green suite.
+# Runs on every PR by default — the app suite is part of the review signal, not an
+# opt-in extra. Label a PR `Skip E2E` to skip both suites, or `Skip E2E: App` to skip
+# only this one (label changes re-evaluate, so removing a label runs the suite).
+# Branch protection requires the `E2E App` check, not the Cypress job: on a ready PR it
+# goes red whenever the suite is skipped, failed or cancelled, so a label only defers
+# the run — it never lets a PR merge without a green suite. On a draft both jobs are
+# skipped (not red); marking it ready fires `ready_for_review`, which runs both for real.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
@@ -14,13 +18,28 @@ concurrency:
 
 jobs:
   cypress-run:
-    name: E2E (App)
     uses: ./.github/workflows/e2e-tests-base.yml
     with:
       directory: ./modules/app
       artifact-suffix: app
-      skip-reason: >-
-        ${{ contains(github.event.pull_request.labels.*.name, 'Skip E2E') && 'Skip E2E'
-        || contains(github.event.pull_request.labels.*.name, 'Skip E2E: App') && 'Skip E2E: App'
-        || '' }}
-    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (!github.event.pull_request.draft &&
+       !contains(github.event.pull_request.labels.*.name, 'Skip E2E') &&
+       !contains(github.event.pull_request.labels.*.name, 'Skip E2E: App'))
+
+  gate:
+    name: E2E App
+    needs: cypress-run
+    if: always() && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a green suite
+        env:
+          RESULT: ${{ needs.cypress-run.result }}
+        run: |
+          echo "Cypress result: $RESULT"
+          if [ "$RESULT" != "success" ]; then
+            echo "::error::E2E suite did not pass ($RESULT). A skipped run (Skip E2E label) still blocks merging — remove the label and let it run."
+            exit 1
+          fi
