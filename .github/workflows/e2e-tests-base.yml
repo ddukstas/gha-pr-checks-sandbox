@@ -1,0 +1,70 @@
+name: Reusable E2E Tests
+
+on:
+  workflow_call:
+    inputs:
+      directory:
+        required: true
+        type: string
+      # Distinguishes this module's artifacts when several callers upload from one run.
+      artifact-suffix:
+        required: false
+        type: string
+        default: ''
+      # A skip label: fails the job at once, since a skipped job would satisfy a required check.
+      skip-reason:
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  cypress-run:
+    name: Cypress Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse a skip label
+        if: inputs.skip-reason != ''
+        env:
+          SKIP_REASON: ${{ inputs.skip-reason }}
+        run: |
+          echo "::error::E2E suite skipped by the '$SKIP_REASON' label. A skipped run still blocks merging — remove the label and let it run."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Cache NPM dependencies & vite build cache
+        id: cache-npm-deps
+        uses: actions/cache@v5
+        with:
+          path: |
+            node_modules
+            modules/**/node_modules
+            ~/.cache
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json', 'base.vite.config.ts', 'modules/**/vite.config.ts') }}
+
+      - name: Install dependencies
+        if: steps.cache-npm-deps.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Cypress run
+        run: node e2e.js ${{ inputs.directory }}
+
+      - name: Archive Cypress videos
+        uses: actions/upload-artifact@v7
+        if: failure() && inputs.skip-reason == ''
+        with:
+          name: cypress-videos${{ inputs.artifact-suffix && format('-{0}', inputs.artifact-suffix) || '' }}
+          path: modules/**/cypress/videos
+          if-no-files-found: ignore
+      - name: Archive Cypress screenshots
+        uses: actions/upload-artifact@v7
+        if: failure() && inputs.skip-reason == ''
+        with:
+          name: cypress-screenshots${{ inputs.artifact-suffix && format('-{0}', inputs.artifact-suffix) || '' }}
+          path: modules/**/cypress/screenshots
+          if-no-files-found: ignore

@@ -1,0 +1,1 @@
+committed sentinel: present before any step runs

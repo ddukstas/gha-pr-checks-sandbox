@@ -1,0 +1,22 @@
+name: Release Deploy (stand-in)
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types: [published]
+jobs:
+  e2e:
+    if: github.event_name == 'release'
+    uses: ./.github/workflows/e2e-tests-base.yml
+    with:
+      directory: ./modules/app
+      artifact-suffix: app
+
+  build-and-deploy:
+    needs: [e2e]
+    if: ${{ !cancelled() && (needs.e2e.result == 'success' || needs.e2e.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "build-and-deploy stand-in (event=${{ github.event_name }})"

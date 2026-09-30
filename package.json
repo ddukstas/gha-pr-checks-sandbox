@@ -1,0 +1,11 @@
+{
+  "name": "gha-pr-checks-sandbox",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node test.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
